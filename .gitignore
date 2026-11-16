@@ -1,0 +1,34 @@
+# Raw sequencing data
+raw/
+
+# Reference files and indices
+ref/
+
+# Logs and temporary files
+logs/
+tmp/
+
+# Snakemake generated files
+.snakemake/
+
+# Large sequencing files
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.sra
+*.sam
+*.bam
+*.bai
+*.cram
+
+# Conda environments
+conda_env/
+env/
+
+# Generated analysis results
+mapped/
+trimmed/
+qc/
+counts/
+results/
