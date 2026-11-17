@@ -3,4 +3,4 @@ channels:
   - bioconda
 
 dependencies:
-  - kallisto
+  - kallisto=0.52.0

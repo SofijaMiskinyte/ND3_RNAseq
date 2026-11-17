@@ -7,3 +7,4 @@ dependencies:
   - bedtools
   - ucsc-gtftogenepred
   - ucsc-genepredtobed
+  - samtools

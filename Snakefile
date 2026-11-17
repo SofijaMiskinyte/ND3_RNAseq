@@ -24,7 +24,12 @@ rule all:
         expand("qc/rseqc/{sample}_geneBodyCoverage.geneBodyCoverage.txt",
                sample=SAMPLES),
 
-        "results/multiqc/multiqc_report.html"
+        "results/multiqc/multiqc_report.html",
+        "qc/deeptools/multibam_summary.npz",
+        "results/deeptools/correlation.png",
+        "results/deeptools/correlation_matrix.tsv",
+        "results/deeptools/pca.png",
+        "results/deeptools/pca_data.tsv"
 
 rule fastqc_raw:
     input:
@@ -109,6 +114,7 @@ rule featurecounts:
         """
         featureCounts -T {threads} \
             -p --countReadPairs \
+            -s 0 \
             -t exon -g gene_id \
             -a {input.annotation} \
             -o {output.counts} \
@@ -127,7 +133,7 @@ rule kallisto_index:
     shell:
         """
         mkdir -p ref/kallisto_index
-        kallisto index -i {output.index} {input.transcriptome} > {log} 2>&1
+        kallisto index -t {threads} -i {output.index} {input.transcriptome} > {log} 2>&1
         """  
 rule kallisto_quant:
     input:
@@ -197,7 +203,18 @@ rule multiqc:
         hisat2_logs=expand("logs/hisat2_{sample}.log",
                            sample=SAMPLES),
         bam_files=expand("mapped/{sample}.sorted.bam",
-                         sample=SAMPLES)
+                         sample=SAMPLES),
+        flagstat=expand("qc/alignment/{sample}_flagstat.txt",
+                        sample=SAMPLES),
+        stats=expand("qc/alignment/{sample}_stats.txt",
+                     sample=SAMPLES),
+        counts=expand("counts/{sample}_counts.txt",
+                      sample=SAMPLES),
+        read_distribution=expand("qc/rseqc/{sample}_read_distribution.txt",
+                                 sample=SAMPLES),
+        gene_body=expand(
+            "qc/rseqc/{sample}_geneBodyCoverage.geneBodyCoverage.txt",
+            sample=SAMPLES)
     output:
         html="results/multiqc/multiqc_report.html"
     conda:
@@ -207,7 +224,7 @@ rule multiqc:
     shell:
         """
         mkdir -p results/multiqc
-        multiqc qc/raw qc/trimmed logs \
+        multiqc qc/ logs/ counts/ \
             -o results/multiqc \
             --force > {log} 2>&1
         """
@@ -255,10 +272,9 @@ rule gtf_to_bed12:
     shell:
         """
         set -euo pipefail
-        zcat {input.gtf} | gtfToGenePred \
-            -genePredExt -ignoreGroupsWithoutExons stdin stdout | \
-            genePredToBed stdin {output.bed} \
-            2> {log}
+        zcat {input.gtf} 2> {log} | \
+        gtfToGenePred -genePredExt -ignoreGroupsWithoutExons stdin stdout 2>> {log} | \
+        genePredToBed stdin {output.bed} 2>> {log}
         """
 rule infer_experiment:
     input:
@@ -298,8 +314,9 @@ rule read_distribution:
         """
 rule gene_body_coverage:
     input:
-        bam="mapped/{sample}.sorted.bam",
-        bed="ref/gencode.v50.bed12"
+        bam="qc/subsampled/{sample}.bam",
+        bai="qc/subsampled/{sample}.bam.bai",
+        bed="ref/gencode.v50.longest.bed12"
     output:
         txt="qc/rseqc/{sample}_geneBodyCoverage.geneBodyCoverage.txt"
     params:
@@ -316,4 +333,103 @@ rule gene_body_coverage:
             -r {input.bed} \
             -o {params.prefix} \
             > {log} 2>&1
+        """
+rule select_transcripts:
+    input:
+        gtf=config["reference"]["annotation"],
+        bed="ref/gencode.v50.bed12",
+        script="scripts/select_transcripts.py"
+    output:
+        bed="ref/gencode.v50.longest.bed12"
+    conda:
+        "envs/rseqc.yaml"
+    log:
+        "logs/select_transcripts.log"
+    shell:
+        """
+        python {input.script} > {log} 2>&1
+        """
+rule multi_bam_summary:
+    input:
+        bams=expand("mapped/{sample}.sorted.bam", sample=SAMPLES),
+        indexes=expand("mapped/{sample}.sorted.bam.bai", sample=SAMPLES)
+    output:
+        npz="qc/deeptools/multibam_summary.npz"
+    threads: 4
+    conda:
+        "envs/deeptools.yaml"
+    log:
+        "logs/multibam_summary.log"
+    shell:
+        """
+        mkdir -p qc/deeptools
+        multiBamSummary bins \
+            --bamfiles {input.bams} \
+            --labels {SAMPLES} \
+            --numberOfProcessors {threads} \
+            --outFileName {output.npz} \
+            > {log} 2>&1
+        """
+rule plot_correlation:
+    input:
+        npz="qc/deeptools/multibam_summary.npz"
+    output:
+        png="results/deeptools/correlation.png",
+        matrix="results/deeptools/correlation_matrix.tsv"
+    conda:
+        "envs/deeptools.yaml"
+    log:
+        "logs/plot_correlation.log"
+    shell:
+        """
+        mkdir -p results/deeptools
+        plotCorrelation \
+            --corData {input.npz} \
+            --corMethod spearman \
+            --whatToPlot heatmap \
+            --plotFile {output.png} \
+            --outFileCorMatrix {output.matrix} \
+            > {log} 2>&1
+        """
+rule plot_pca:
+    input:
+        npz="qc/deeptools/multibam_summary.npz"
+    output:
+        png="results/deeptools/pca.png",
+        data="results/deeptools/pca_data.tsv"
+    conda:
+        "envs/deeptools.yaml"
+    log:
+        "logs/plot_pca.log"
+    shell:
+        """
+        mkdir -p results/deeptools
+        plotPCA \
+            --corData {input.npz} \
+            --plotFile {output.png} \
+            --outFileNameData {output.data} \
+            > {log} 2>&1
+        """
+rule subsample_bam:
+    input:
+        bam="mapped/{sample}.sorted.bam"
+    output:
+        bam="qc/subsampled/{sample}.bam",
+        bai="qc/subsampled/{sample}.bam.bai"
+    threads: 2
+    conda:
+        "envs/rseqc.yaml"
+    log:
+        "logs/subsample_{sample}.log"
+    shell:
+        """
+        set -euo pipefail
+        mkdir -p qc/subsampled
+
+        samtools view -@ {threads} -b -s 42.10 \
+            {input.bam} -o {output.bam} \
+            2> {log}
+
+        samtools index -@ {threads} {output.bam} \
+            2>> {log}
         """
