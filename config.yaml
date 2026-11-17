@@ -1,0 +1,23 @@
+samples:
+  - SRR1039516
+  - SRR1039512
+  - SRR1039509
+  - SRR1039514
+
+raw_dir: "raw"
+trimmed_dir: "trimmed"
+qc_dir: "qc"
+mapped_dir: "mapped"
+
+reference:
+  genome: "ref/GRCh38.primary_assembly.genome.fa"
+  annotation: "ref/gencode.v50.primary_assembly.annotation.gtf.gz"
+  transcriptome: "ref/gencode.v50.transcripts.fa.gz"
+  hisat2_index: "ref/hisat2_index/grch38"
+
+threads:
+  fastqc: 2
+  trimming: 4
+  alignment: 8
+
+adapters: "resources/adapters/TruSeq3-PE.fa"
