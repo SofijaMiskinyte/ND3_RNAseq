@@ -23,6 +23,8 @@ rule all:
         expand("qc/rseqc/{sample}_read_distribution.txt", sample=SAMPLES),
         expand("qc/rseqc/{sample}_geneBodyCoverage.geneBodyCoverage.txt",
                sample=SAMPLES),
+        expand("qc/rseqc/{sample}_inner_distance.inner_distance.txt",
+               sample=SAMPLES),
 
         "results/multiqc/multiqc_report.html",
         "qc/deeptools/multibam_summary.npz",
@@ -432,4 +434,27 @@ rule subsample_bam:
 
         samtools index -@ {threads} {output.bam} \
             2>> {log}
+        """
+rule inner_distance:
+    input:
+        bam="mapped/{sample}.sorted.bam",
+        bed="ref/gencode.v50.longest.bed12"
+    output:
+        txt="qc/rseqc/{sample}_inner_distance.inner_distance.txt"
+    params:
+        prefix="qc/rseqc/{sample}_inner_distance"
+    conda:
+        "envs/rseqc.yaml"
+    log:
+        "logs/inner_distance_{sample}.log"
+    shell:
+        """
+        mkdir -p qc/rseqc
+        inner_distance.py \
+            -i {input.bam} \
+            -r {input.bed} \
+            -o {params.prefix} \
+            -k 1000000 \
+            --skip-plot \
+            > {log} 2>&1
         """
