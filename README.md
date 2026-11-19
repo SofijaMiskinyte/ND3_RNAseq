@@ -37,9 +37,15 @@ The RNA-seq analysis was performed using Snakemake.
 
 ## 5. How to Run
 
-Run the workflow using:
+Activate the Snakemake environment:
+
 ```bash
-snakemake --cores 4 --use-conda
+conda activate snakemake
+```
+
+Run the workflow:
+```bash
+snakemake --cores 4 --use-conda --conda-frontend conda
 ```
 ## 6. Results
 
