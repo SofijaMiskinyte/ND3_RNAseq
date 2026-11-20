@@ -87,6 +87,8 @@ rule align_reads:
     output:
         bam="mapped/{sample}.sorted.bam"
     threads: config["threads"]["alignment"]
+    params:
+        hisat2_threads=lambda wildcards, threads: max(1, threads - 2)
     conda:
         "envs/hisat2.yaml"
     log:
@@ -94,7 +96,7 @@ rule align_reads:
     shell:
         """
         set -euo pipefail
-        hisat2 -p 6 \
+        hisat2 -p {params.hisat2_threads} \
             -x {config[reference][hisat2_index]} \
             -1 {input.r1} \
             -2 {input.r2} \
